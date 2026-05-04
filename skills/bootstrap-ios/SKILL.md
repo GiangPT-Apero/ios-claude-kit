@@ -12,7 +12,7 @@ Two modes: **local** (clone to current directory) or **remote** (clone + push to
 
 ## Template
 
-`https://github.com/dungtran-apero/Base-Swift-UI.git` (local) or the team's GitHub template repo.
+`https://github.com/dungtran-apero/Base-Swift-UI.git` the team's GitHub template repo.
 
 ## Arguments
 
