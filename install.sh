@@ -80,6 +80,11 @@ if [ -n "$APP_NAME" ]; then
     \( -name "*.pbxproj" -o -name "*.plist" -o -name "*.xcscheme" -o -name "Podfile" \) \
     -exec sed -i '' "s/$OLD_APP_NAME/$APP_NAME/g" {} +
 
+  # Rename source folder on disk to match Xcode's PBXFileSystemSynchronizedRootGroup path
+  if [ -d "$OLD_APP_NAME" ]; then
+    mv "$OLD_APP_NAME" "$APP_NAME"
+  fi
+
   git add -A
   git diff --cached --quiet || git commit -m "chore: rename app to $APP_NAME" --quiet
   echo "App name renamed."
