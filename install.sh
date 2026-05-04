@@ -13,6 +13,9 @@ set -e
 TEMPLATE_REPO="https://github.com/GiangPT-Apero/base-swift-ui.git"
 KIT_REPO="https://github.com/GiangPT-Apero/ios-claude-kit.git"
 
+OLD_BUNDLE="com.apero.base-swiftui"
+OLD_APP_NAME="base-swiftui"
+
 PROJECT_PATH="$1"
 BUNDLE_ID="$2"
 APP_NAME="$3"
@@ -42,6 +45,12 @@ echo "Cloning iOS template..."
 git clone "$TEMPLATE_REPO" . --quiet
 echo "Template cloned."
 
+# ── Ignore .claude/ in project git ──────────────────────────────────────────
+
+echo ".claude/" >> .gitignore
+git add .gitignore
+git commit -m "chore: ignore .claude kit directory" --quiet
+
 # ── Clone kit into .claude/ ──────────────────────────────────────────────────
 
 echo "Installing ios-claude-kit into .claude/..."
@@ -52,14 +61,13 @@ echo "Kit installed."
 
 if [ -n "$BUNDLE_ID" ]; then
   echo "Renaming bundle ID to $BUNDLE_ID..."
-  OLD_BUNDLE="com.apero.base-swiftui"
 
-  find . -not -path './.git/*' -not -path './.claude/*' \
+  find . -not -path './.git/*' -not -path './.claude/*' -not -path './Pods/*' \
     \( -name "*.pbxproj" -o -name "*.plist" -o -name "*.entitlements" \) \
     -exec sed -i '' "s/$OLD_BUNDLE/$BUNDLE_ID/g" {} +
 
   git add -A
-  git commit -m "chore: rename bundle ID to $BUNDLE_ID" --quiet
+  git diff --cached --quiet || git commit -m "chore: rename bundle ID to $BUNDLE_ID" --quiet
   echo "Bundle ID renamed."
 fi
 
@@ -67,14 +75,13 @@ fi
 
 if [ -n "$APP_NAME" ]; then
   echo "Renaming app name to $APP_NAME..."
-  OLD_NAME="BaseSwiftUI"
 
-  find . -not -path './.git/*' -not -path './.claude/*' \
-    \( -name "*.pbxproj" -o -name "*.plist" \) \
-    -exec sed -i '' "s/$OLD_NAME/$APP_NAME/g" {} +
+  find . -not -path './.git/*' -not -path './.claude/*' -not -path './Pods/*' \
+    \( -name "*.pbxproj" -o -name "*.plist" -o -name "*.xcscheme" \) \
+    -exec sed -i '' "s/$OLD_APP_NAME/$APP_NAME/g" {} +
 
   git add -A
-  git commit -m "chore: rename app to $APP_NAME" --quiet
+  git diff --cached --quiet || git commit -m "chore: rename app to $APP_NAME" --quiet
   echo "App name renamed."
 fi
 
@@ -92,9 +99,9 @@ echo ""
 echo "Project ready at: $PROJECT_PATH"
 echo ""
 echo "Next steps:"
-echo "  1. open $PROJECT_PATH/$WORKSPACE"
-echo "  2. Set signing team in Xcode → Target → Signing & Capabilities"
+echo "  1. open \"$PROJECT_PATH/$WORKSPACE\""
+echo "  2. Set signing team: Xcode → Target → Signing & Capabilities"
 echo "  3. See TODO_LIST.md for remaining setup"
 echo ""
 echo "To update ios-claude-kit later:"
-echo "  cd $PROJECT_PATH/.claude && git pull"
+echo "  cd \"$PROJECT_PATH/.claude\" && git pull"
