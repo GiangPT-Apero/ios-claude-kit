@@ -4,17 +4,41 @@ Claude Code toolkit for iOS development with SwiftUI + Clean Architecture.
 
 ## What's Inside
 
+### Skills
 | Component | Trigger | Description |
 |-----------|---------|-------------|
 | `skills/bootstrap-ios` | `/bootstrap-ios` | Bootstrap a new iOS project from template |
 | `skills/ios-build` | `/ios-build` | Typecheck, build, run tests via xcodebuild |
 | `skills/ios-plan` | `/ios-plan <feature>` | Plan a feature before implementing |
+
+### Agents
+| Component | Trigger | Description |
+|-----------|---------|-------------|
 | `agents/ios-git-manager` | auto | Commit/push — ignores xcuserdata, Pods |
 | `agents/ios-code-reviewer` | auto | Review Swift for Clean Architecture violations |
-| `output-styles/ios-level-2-mid` | mention in prompt | Mid-level iOS explanation style |
-| `output-styles/ios-level-3-senior` | mention in prompt | Senior trade-offs focused style |
-| `hooks/privacy-block.cjs` | auto | Blocks reading .env, *.pem, *.key |
-| `hooks/notifications/notify.cjs` | auto | macOS/Slack/Telegram notify on task complete |
+
+### Output Styles (mention in prompt to activate)
+| Component | Level | For |
+|-----------|-------|-----|
+| `output-styles/ios-level-0-eli5` | 0 | Complete beginners — no coding experience |
+| `output-styles/ios-level-1-junior` | 1 | Junior devs (0-2 years) — learning patterns |
+| `output-styles/ios-level-2-mid` | 2 | Mid-level (2-4 years) — knows Swift basics |
+| `output-styles/ios-level-3-senior` | 3 | Senior (5-8 years) — trade-offs focused |
+| `output-styles/ios-level-4-lead` | 4 | Tech Lead (8-15 years) — risk/business alignment |
+| `output-styles/ios-level-5-god` | 5 | Expert (15+ years) — maximum velocity |
+
+### Hooks
+| Component | Event | Description |
+|-----------|-------|-------------|
+| `hooks/privacy-block.cjs` | PreToolUse | Blocks .env, *.pem, *.key — with Bash scanning + APPROVED: bypass |
+| `hooks/scout-block/scout-block.cjs` | PreToolUse | Blocks overly broad glob patterns (context overflow prevention) |
+| `hooks/notifications/notify.cjs` | PostTask | macOS + Slack + Telegram + Discord notify on task complete |
+
+### Rules
+| Component | Description |
+|-----------|-------------|
+| `rules/ios-documentation.md` | Auto-update rules for plans, TODO_LIST, CLAUDE.md |
+| `rules/ios-git-rules.md` | Commit conventions, never-stage list, branch naming |
 
 ## Requirements
 
@@ -86,7 +110,12 @@ MyApp/                      ← project git repo
 │   ├── skills/
 │   ├── agents/
 │   ├── hooks/
-│   └── output-styles/
+│   │   ├── privacy-block.cjs        ← blocks .env, .pem, .key
+│   │   ├── lib/privacy-checker.cjs  ← shared logic (Bash scanning, APPROVED: bypass)
+│   │   ├── scout-block/             ← blocks overly broad glob patterns
+│   │   └── notifications/           ← macOS/Slack/Telegram/Discord
+│   ├── output-styles/               ← levels 0-5
+│   └── rules/                       ← documentation & git conventions
 ├── base-swiftui/           ← Xcode source
 ├── CLAUDE.md               ← project-specific rules (from template)
 └── Podfile

@@ -1,78 +1,100 @@
 #!/usr/bin/env node
 /**
- * notify.cjs
- * Send notifications when Claude completes a task.
- * Supports: macOS native notification (default), Slack, Telegram
+ * notify.cjs — Notification router for iOS Claude Kit hooks
+ * Reads stdin JSON, routes to enabled providers (Telegram, Slack, Discord)
+ * Also fires macOS native notification.
  *
  * Setup: copy .env.example to .env and fill in webhook URLs
+ * Usage: echo '{"hook_event_name":"Stop"}' | node notify.cjs
  */
+'use strict';
 
-const { execSync } = require('child_process');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const { loadEnv } = require('./lib/env-loader.cjs');
 
-function loadEnv() {
-  const envPath = path.join(__dirname, '.env');
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, 'utf8').split('\n');
-  for (const line of lines) {
-    const [key, ...rest] = line.split('=');
-    if (key && rest.length) process.env[key.trim()] = rest.join('=').trim();
-  }
+const PROVIDER_PREFIXES = ['TELEGRAM', 'SLACK', 'DISCORD'];
+
+async function readStdin() {
+  return new Promise(resolve => {
+    if (process.stdin.isTTY) { resolve({}); return; }
+
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => { data += chunk; });
+    process.stdin.on('end', () => {
+      if (!data.trim()) { resolve({}); return; }
+      try { resolve(JSON.parse(data)); } catch { resolve({}); }
+    });
+    process.stdin.on('error', () => resolve({}));
+    setTimeout(() => resolve({}), 5000);
+  });
 }
 
-async function notifyMac(message) {
+function hasProviderEnv(prefix, env) {
+  return Object.keys(env).some(k => k.startsWith(prefix + '_'));
+}
+
+function loadProvider(name) {
+  const p = path.join(__dirname, 'providers', `${name}.cjs`);
+  try {
+    if (fs.existsSync(p)) return require(p);
+  } catch (err) {
+    console.error(`[notify] Failed to load provider ${name}: ${err.message}`);
+  }
+  return null;
+}
+
+async function notifyMac(input) {
+  const hookType = input.hook_event_name || 'Task completed';
+  const project = path.basename(input.cwd || '') || 'iOS Project';
+  const messages = {
+    Stop: `${project}: Task completed`,
+    SubagentStop: `${project}: Agent done`,
+    AskUserPrompt: `${project}: Input needed`,
+  };
+  const message = messages[hookType] || `${project}: ${hookType}`;
   try {
     execSync(`osascript -e 'display notification "${message}" with title "Claude Code"'`);
   } catch {}
 }
 
-async function notifySlack(message) {
-  const url = process.env.SLACK_WEBHOOK_URL;
-  if (!url) return;
-  try {
-    const { default: https } = await import('https');
-    const body = JSON.stringify({ text: `Claude Code: ${message}` });
-    const req = https.request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-    req.write(body);
-    req.end();
-  } catch {}
-}
-
-async function notifyTelegram(message) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
-  try {
-    const { default: https } = await import('https');
-    const body = JSON.stringify({ chat_id: chatId, text: `Claude Code: ${message}` });
-    const req = https.request(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    req.write(body);
-    req.end();
-  } catch {}
-}
-
 async function main() {
-  loadEnv();
+  try {
+    const input = await readStdin();
+    const cwd = input.cwd || process.cwd();
+    const env = loadEnv(cwd);
 
-  let input = '';
-  for await (const chunk of process.stdin) input += chunk;
+    // macOS native notification always fires
+    await notifyMac(input);
 
-  let event;
-  try { event = JSON.parse(input); } catch { process.exit(0); }
+    // Route to remote providers
+    for (const prefix of PROVIDER_PREFIXES) {
+      if (!hasProviderEnv(prefix, env)) continue;
 
-  const message = event?.message || event?.tool_use?.name || 'Task completed';
+      const provider = loadProvider(prefix.toLowerCase());
+      if (!provider) continue;
+      if (typeof provider.isEnabled === 'function' && !provider.isEnabled(env)) continue;
 
-  await Promise.all([
-    notifyMac(message),
-    notifySlack(message),
-    notifyTelegram(message),
-  ]);
+      try {
+        const result = await provider.send(input, env);
+        if (result.success) {
+          console.error(`[notify] ${prefix.toLowerCase()}: sent`);
+        } else if (result.throttled) {
+          console.error(`[notify] ${prefix.toLowerCase()}: throttled`);
+        } else {
+          console.error(`[notify] ${prefix.toLowerCase()}: failed — ${result.error}`);
+        }
+      } catch (err) {
+        console.error(`[notify] ${prefix.toLowerCase()} error: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    console.error(`[notify] Fatal: ${err.message}`);
+  }
 
   process.exit(0);
 }
 
-main().catch(() => process.exit(0));
+main();
