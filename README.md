@@ -27,14 +27,14 @@ Claude Code toolkit for iOS development with SwiftUI + Clean Architecture.
 
 **Option A — Clone directly into `~/.claude` (recommended):**
 ```bash
-git clone git@github.com:org/ios-claude-kit.git ~/.claude
+git clone https://github.com/GiangPT-Apero/ios-claude-kit.git ~/.claude
 ```
 
 Skills and agents are available immediately in all projects.
 
 **Option B — Clone elsewhere and run installer:**
 ```bash
-git clone git@github.com:org/ios-claude-kit.git ~/ios-claude-kit
+git clone https://github.com/GiangPT-Apero/ios-claude-kit.git ~/ios-claude-kit
 cd ~/ios-claude-kit
 chmod +x install.sh
 ./install.sh
