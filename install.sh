@@ -77,7 +77,7 @@ if [ -n "$APP_NAME" ]; then
   echo "Renaming app name to $APP_NAME..."
 
   find . -not -path './.git/*' -not -path './.claude/*' -not -path './Pods/*' \
-    \( -name "*.pbxproj" -o -name "*.plist" -o -name "*.xcscheme" \) \
+    \( -name "*.pbxproj" -o -name "*.plist" -o -name "*.xcscheme" -o -name "Podfile" \) \
     -exec sed -i '' "s/$OLD_APP_NAME/$APP_NAME/g" {} +
 
   git add -A
