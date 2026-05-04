@@ -1,50 +1,100 @@
 #!/bin/bash
-# install.sh — Install ios-claude-kit into ~/.claude
-# Usage: ./install.sh
+# install.sh — Setup a new iOS project with ios-claude-kit
+#
+# Usage:
+#   ./install.sh <project-path> [bundle-id] [app-name]
+#
+# Examples:
+#   ./install.sh ~/Projects/MyApp
+#   ./install.sh ~/Projects/MyApp com.company.myapp MyApp
 
 set -e
 
-KIT_DIR="$(cd "$(dirname "$0")" && pwd)/.claude"
-TARGET_DIR="$HOME/.claude"
+TEMPLATE_REPO="https://github.com/GiangPT-Apero/base-swift-ui.git"
+KIT_REPO="https://github.com/GiangPT-Apero/ios-claude-kit.git"
 
-echo "ios-claude-kit installer"
-echo "========================"
-echo "Source:  $KIT_DIR"
-echo "Target:  $TARGET_DIR"
-echo ""
+PROJECT_PATH="$1"
+BUNDLE_ID="$2"
+APP_NAME="$3"
 
-# Check if ~/.claude already exists
-if [ -d "$TARGET_DIR" ]; then
-  echo "WARNING: $TARGET_DIR already exists."
-  echo "This will merge kit files into your existing ~/.claude."
-  echo "Existing files with the same name will be overwritten."
-  echo ""
-  read -p "Continue? (y/N) " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Aborted."
-    exit 0
-  fi
+# ── Validate ────────────────────────────────────────────────────────────────
+
+if [ -z "$PROJECT_PATH" ]; then
+  echo "Usage: ./install.sh <project-path> [bundle-id] [app-name]"
+  echo "Example: ./install.sh ~/Projects/MyApp com.company.myapp MyApp"
+  exit 1
 fi
 
-# Create target directories
-mkdir -p "$TARGET_DIR/agents"
-mkdir -p "$TARGET_DIR/skills/bootstrap-ios/references"
-mkdir -p "$TARGET_DIR/skills/ios-build"
-mkdir -p "$TARGET_DIR/skills/ios-plan"
-mkdir -p "$TARGET_DIR/output-styles"
-mkdir -p "$TARGET_DIR/hooks/notifications"
+PROJECT_PATH="${PROJECT_PATH/#\~/$HOME}"  # expand ~
 
-# Copy files
-cp -r "$KIT_DIR/agents/"* "$TARGET_DIR/agents/"
-cp -r "$KIT_DIR/skills/"* "$TARGET_DIR/skills/"
-cp -r "$KIT_DIR/output-styles/"* "$TARGET_DIR/output-styles/"
-cp -r "$KIT_DIR/hooks/"* "$TARGET_DIR/hooks/"
+if [ -d "$PROJECT_PATH" ] && [ "$(ls -A "$PROJECT_PATH" 2>/dev/null | grep -v '^\.')" ]; then
+  echo "ERROR: $PROJECT_PATH is not empty."
+  echo "Please provide an empty or non-existent directory."
+  exit 1
+fi
+
+mkdir -p "$PROJECT_PATH"
+cd "$PROJECT_PATH"
+
+# ── Clone template ───────────────────────────────────────────────────────────
+
+echo "Cloning iOS template..."
+git clone "$TEMPLATE_REPO" . --quiet
+echo "Template cloned."
+
+# ── Clone kit into .claude/ ──────────────────────────────────────────────────
+
+echo "Installing ios-claude-kit into .claude/..."
+git clone "$KIT_REPO" .claude --quiet
+echo "Kit installed."
+
+# ── Rename bundle ID ─────────────────────────────────────────────────────────
+
+if [ -n "$BUNDLE_ID" ]; then
+  echo "Renaming bundle ID to $BUNDLE_ID..."
+  OLD_BUNDLE="com.apero.base-swiftui"
+
+  find . -not -path './.git/*' -not -path './.claude/*' \
+    \( -name "*.pbxproj" -o -name "*.plist" -o -name "*.entitlements" \) \
+    -exec sed -i '' "s/$OLD_BUNDLE/$BUNDLE_ID/g" {} +
+
+  git add -A
+  git commit -m "chore: rename bundle ID to $BUNDLE_ID" --quiet
+  echo "Bundle ID renamed."
+fi
+
+# ── Rename app name ───────────────────────────────────────────────────────────
+
+if [ -n "$APP_NAME" ]; then
+  echo "Renaming app name to $APP_NAME..."
+  OLD_NAME="BaseSwiftUI"
+
+  find . -not -path './.git/*' -not -path './.claude/*' \
+    \( -name "*.pbxproj" -o -name "*.plist" \) \
+    -exec sed -i '' "s/$OLD_NAME/$APP_NAME/g" {} +
+
+  git add -A
+  git commit -m "chore: rename app to $APP_NAME" --quiet
+  echo "App name renamed."
+fi
+
+# ── Install CocoaPods ─────────────────────────────────────────────────────────
+
+echo "Running pod install..."
+pod install --silent
+echo "CocoaPods installed."
+
+# ── Done ──────────────────────────────────────────────────────────────────────
+
+WORKSPACE=$(ls *.xcworkspace 2>/dev/null | head -1)
 
 echo ""
-echo "Installed successfully."
+echo "Project ready at: $PROJECT_PATH"
 echo ""
 echo "Next steps:"
-echo "  1. Review ~/.claude/hooks/notifications/.env.example"
-echo "     Copy to .env and fill in webhook URLs if you want Slack/Telegram notifications"
-echo "  2. Open any iOS project in Claude Code — skills are now available"
-echo "  3. To update later: cd $(pwd) && git pull && ./install.sh"
+echo "  1. open $PROJECT_PATH/$WORKSPACE"
+echo "  2. Set signing team in Xcode → Target → Signing & Capabilities"
+echo "  3. See TODO_LIST.md for remaining setup"
+echo ""
+echo "To update ios-claude-kit later:"
+echo "  cd $PROJECT_PATH/.claude && git pull"

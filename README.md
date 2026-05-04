@@ -20,80 +20,82 @@ Claude Code toolkit for iOS development with SwiftUI + Clean Architecture.
 
 - Claude Code CLI
 - Xcode 15+
-- CocoaPods (`gem install cocoapods`)
-- GitHub CLI (`brew install gh`) — only for `/bootstrap-ios` remote mode
+- CocoaPods (`sudo gem install cocoapods`)
+- GitHub CLI (`brew install gh`) — only for remote operations
 
-## Installation
+## Setup a New Project
 
-**Option A — Clone directly into `~/.claude` (recommended):**
+### Option A — One-line installer (recommended)
+
 ```bash
-git clone https://github.com/GiangPT-Apero/ios-claude-kit.git ~/.claude
-```
-
-Skills and agents are available immediately in all projects.
-
-**Option B — Clone elsewhere and run installer:**
-```bash
+# Clone kit anywhere
 git clone https://github.com/GiangPT-Apero/ios-claude-kit.git ~/ios-claude-kit
-cd ~/ios-claude-kit
-chmod +x install.sh
-./install.sh
+chmod +x ~/ios-claude-kit/install.sh
+
+# Bootstrap new project
+~/ios-claude-kit/install.sh ~/Projects/MyApp com.company.myapp MyApp
 ```
 
-Use Option B if you already have things in `~/.claude` you want to keep.
+This will:
+1. Clone the Base-Swift-UI template into `~/Projects/MyApp`
+2. Clone this kit into `~/Projects/MyApp/.claude/`
+3. Rename bundle ID and app name
+4. Run `pod install`
 
-## Update
-
+Then open in Claude Code:
 ```bash
-cd ~/.claude && git pull
+cd ~/Projects/MyApp
+claude .
 ```
 
-If you used Option B:
+### Option B — Manual steps
+
 ```bash
-cd ~/ios-claude-kit && git pull && ./install.sh
-```
+mkdir MyApp && cd MyApp
 
-## Template Setup (per project)
+# Clone template
+git clone https://github.com/GiangPT-Apero/base-swift-ui.git .
 
-This kit works best with the [Base-Swift-UI](https://github.com/org/base-swift-ui) template.
+# Clone kit into .claude/ (nested repo — does not conflict with project git)
+git clone https://github.com/GiangPT-Apero/ios-claude-kit.git .claude
 
-After cloning a new project:
-```bash
-git clone git@github.com:org/base-swift-ui.git MyApp
-cd MyApp
+# Install dependencies
 pod install
 open *.xcworkspace
 ```
 
-The project's `.claude/` folder (rules + settings) is already included in the template — no extra setup needed.
+## Update Kit
 
-## Usage
+Each project has its own copy of the kit in `.claude/`. To update:
 
-### Bootstrap a new project
-Open an empty folder in Claude Code, then:
-```
-/bootstrap-ios com.company.myapp MyApp
-```
-
-### Plan a new feature
-```
-/ios-plan user authentication with biometrics
-```
-
-### Build / typecheck
-```
-/ios-build
-```
-
-### Notifications (optional)
 ```bash
-cp ~/.claude/hooks/notifications/.env.example ~/.claude/hooks/notifications/.env
-# Edit .env — add SLACK_WEBHOOK_URL or TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+cd MyApp/.claude && git pull
 ```
+
+To update all projects at once, run in each project:
+```bash
+cd <project>/.claude && git pull
+```
+
+## How It Works
+
+```
+MyApp/                      ← project git repo
+├── .claude/                ← ios-claude-kit (separate nested git repo)
+│   ├── .git/               ← kit's own git history
+│   ├── skills/
+│   ├── agents/
+│   ├── hooks/
+│   └── output-styles/
+├── base-swiftui/           ← Xcode source
+├── CLAUDE.md               ← project-specific rules (from template)
+└── Podfile
+```
+
+The kit lives in `.claude/` as a nested git repo. The project's git does not track `.claude/` — they are fully independent.
 
 ## Contributing
 
-1. Make changes in your local clone
-2. Test in a real iOS project
-3. Open a PR — maintainer reviews + merges
-4. Team members run `cd ~/.claude && git pull` to get updates
+1. Clone this repo, make changes, test in a real project
+2. Open a PR → maintainer merges
+3. Devs run `cd <project>/.claude && git pull` to get updates
