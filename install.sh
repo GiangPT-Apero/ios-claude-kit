@@ -45,6 +45,9 @@ echo "Cloning iOS template..."
 git clone "$TEMPLATE_REPO" . --quiet
 echo "Template cloned."
 
+# Detach from template remote — project git should be independent
+git remote remove origin
+
 # ── Ignore .claude/ in project git ──────────────────────────────────────────
 
 echo ".claude/" >> .gitignore
