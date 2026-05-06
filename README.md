@@ -14,6 +14,9 @@ Claude Code toolkit for iOS development with SwiftUI + Clean Architecture.
 | `skills/ios-debug` | `/ios-debug [build\|crash\|swiftdata\|pods\|memory\|layout]` | Debug build errors, crashes, and runtime issues |
 | `skills/ios-plan` | `/ios-plan <feature>` | Plan a feature before implementing |
 | `skills/ios-design-system` | `/ios-design-system [colors\|fonts\|spacing\|figma]` | Setup brand colors, fonts, and spacing tokens |
+| `skills/ios-analytics` | `/ios-analytics [add\|audit]` | Add event tracking with AnalyticsEvent + EventTracking |
+| `skills/ios-remote-config` | `/ios-remote-config [add\|audit]` | Add Firebase Remote Config keys (basic + JSON types) |
+| `skills/ios-coordinator` | `/ios-coordinator [add-route\|new-flow\|cross-flow]` | Add routes, flows, and cross-flow navigation |
 | `skills/ios-skill-creator` | `/ios-skill-creator` | Create a new skill for this kit |
 
 ### Agents
