@@ -10,6 +10,7 @@ Claude Code toolkit for iOS development with SwiftUI + Clean Architecture.
 | `skills/bootstrap-ios` | `/bootstrap-ios` | Bootstrap a new iOS project from template |
 | `skills/ios-build` | `/ios-build` | Typecheck, build, run tests via xcodebuild |
 | `skills/ios-plan` | `/ios-plan <feature>` | Plan a feature before implementing |
+| `skills/ios-skill-creator` | `/ios-skill-creator` | Create a new skill for this kit |
 
 ### Agents
 | Component | Trigger | Description |
