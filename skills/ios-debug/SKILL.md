@@ -51,7 +51,16 @@ git diff HEAD~1 --stat
 - `value of type X has no member Y` → API mismatch, wrong Swift version
 - `actor-isolated` / `@MainActor` → concurrency violation, add `await` or `@MainActor`
 
-**Factory / CocoaPods import errors:**
+**Factory DI resolution errors (`@Injected` crashes at runtime):**
+- `Fatal error: No registration found` → register in correct Container extension file:
+  - Data sources → `Container+DataSources.swift`
+  - Repositories → `Container+Repositories.swift`
+  - Interactors → `Container+Interactors.swift`
+  - Services → `Container+Services.swift`
+- Circular dependency crash → check if two registrations call each other
+- `@Injected(\.keyPath)` keyPath not found → verify property name matches `Container` extension exactly
+
+**CocoaPods import errors:**
 ```bash
 pod deintegrate && pod install
 # Then open *.xcworkspace (NOT *.xcodeproj)
@@ -95,7 +104,7 @@ xcrun atos -arch arm64 -o <app>.dSYM/Contents/Resources/DWARF/<app> -l <load_add
 ### SwiftData Issues
 
 **Schema migration crash on launch:**
-- Bump schema version in `SchemaExtension.swift`
+- Bump schema version in `AppSchema.swift` (e.g. `Schema.Version(1, 2, 0)`)
 - Add `MigrationStage` if needed
 - Clean app data on simulator: Device → Content & Privacy → Reset
 
@@ -110,9 +119,9 @@ let name = someObject.name
 ```
 
 **`@Model` not persisting:**
-- Verify entity added to schema in `SchemaExtension.swift`
-- Verify `ModelContainer` configured in App entry point
-- Check `@Environment(\.modelContext)` injected correctly
+- Verify entity is wrapped in `DBModel` namespace: `extension DBModel { @Model final class Feature { } }`
+- Verify `DBModel.Feature.self` added to `Schema.appSchema` array in `AppSchema.swift`
+- Verify `ModelContainer` uses updated schema in `Container+Infrastructure.swift`
 
 **AsyncStream not updating UI:**
 ```swift

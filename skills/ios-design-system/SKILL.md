@@ -1,14 +1,14 @@
 ---
 name: ios-design-system
-description: Setup or customize the iOS design system — colors, fonts, spacing, and components. Use when user wants to apply brand colors, add custom fonts, change app theme, generate design tokens, or asks about AppColors, AppFonts, AppSpacing.
+description: Setup or customize the iOS design system — colors, fonts, and components. Use when user wants to apply brand colors, add custom fonts, change app theme, generate design tokens, or asks about AppColors, AppFonts, ColoringFont, ColoringTextStyle.
 ---
 
 # iOS Design System
 
-Setup and customize design tokens for SwiftUI apps. Generates `AppColors.swift`, `AppFonts.swift`, `AppSpacing.swift` from user input or Figma variables.
+Setup and customize design tokens for SwiftUI apps. Generates color and font token files from user input or Figma variables.
 
-**Scope:** Design tokens (colors, fonts, spacing), dark mode support, design system files in this kit's template.
-**Does NOT handle:** UI component building, Lottie animations, asset catalog management.
+**Scope:** Design tokens (colors, fonts), dark mode support, `.textStyle()` modifier pattern.
+**Does NOT handle:** UI component building, Lottie animations, asset catalog management, spacing tokens.
 
 ## Arguments
 
@@ -16,7 +16,6 @@ Setup and customize design tokens for SwiftUI apps. Generates `AppColors.swift`,
 /ios-design-system                    → interactive setup (asks what to configure)
 /ios-design-system colors             → configure brand colors + dark mode
 /ios-design-system fonts              → configure custom fonts
-/ios-design-system spacing            → configure spacing scale
 /ios-design-system figma <url>        → extract tokens from Figma file
 /ios-design-system all                → full design system setup
 ```
@@ -28,68 +27,32 @@ Setup and customize design tokens for SwiftUI apps. Generates `AppColors.swift`,
 ├── Resources/
 │   └── Fonts/              ← font files (.ttf, .otf)
 └── Utilities/DesignSystem/
-    ├── AppColors.swift
-    ├── AppFonts.swift
-    └── AppSpacing.swift
+    ├── <AppPrefix>Color.swift    ← nested Color enums
+    └── <AppPrefix>Font.swift     ← font system + text styles
 ```
 
-> If these files don't exist at the above paths, search with `Glob "**/{AppColors,AppFonts,AppSpacing}.swift"` to find actual location.
+> If these files don't exist at the above paths, search with `Glob "**/*Color.swift" "**/*Font.swift"` to find actual location.
 
 ## Colors Setup
 
 ### 1. Gather brand colors
 
 Ask user (or read from Figma):
-- Primary color (hex)
-- Secondary color (hex)
-- Background, surface colors
-- Text colors (primary, secondary)
-- Error, success, warning colors
+- Brand/accent colors (primary, secondary)
+- Background colors (primary, card/surface)
+- Text colors (primary, secondary, placeholder)
+- Semantic colors (error, success, warning)
 - Support dark mode? (default: yes)
 
-### 2. Generate AppColors.swift
+### 2. Color file — nested enum pattern
+
+Colors are organized as nested enums inside `Color` extensions. Each group is a separate enum.
 
 ```swift
+// Utilities/DesignSystem/<AppPrefix>Color.swift
 import SwiftUI
 
-extension Color {
-    // MARK: - Brand
-    static let brandPrimary = Color("BrandPrimary")
-    static let brandSecondary = Color("BrandSecondary")
-
-    // MARK: - Background
-    static let backgroundPrimary = Color("BackgroundPrimary")
-    static let backgroundSurface = Color("BackgroundSurface")
-
-    // MARK: - Text
-    static let textPrimary = Color("TextPrimary")
-    static let textSecondary = Color("TextSecondary")
-
-    // MARK: - Semantic
-    static let error = Color("Error")
-    static let success = Color("Success")
-    static let warning = Color("Warning")
-}
-```
-
-### 3. Asset Catalog entries
-
-Instruct user to add Color Sets in `Assets.xcassets`:
-- For each color, create a Color Set with light + dark variants
-- Name must match `Color("...")` string exactly
-
-Provide a table:
-
-| Color Set Name | Light Mode | Dark Mode |
-|---------------|-----------|-----------|
-| BrandPrimary | #XXXXXX | #XXXXXX |
-| ... | ... | ... |
-
-### 4. Hex-based fallback (no asset catalog)
-
-If user prefers hex directly:
-
-```swift
+// MARK: - Hex initializer
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -107,18 +70,71 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255)
     }
+}
 
-    static let brandPrimary = Color(hex: "#YOUR_HEX")
+// MARK: - Brand colors
+extension Color {
+    enum Brand {
+        static let primary = Color(hex: "#YOUR_HEX")
+        static let secondary = Color(hex: "#YOUR_HEX")
+    }
+}
+
+// MARK: - Background colors
+extension Color {
+    enum Background {
+        static let primary = Color(hex: "#YOUR_HEX")
+        static let card = Color(hex: "#YOUR_HEX")
+    }
+}
+
+// MARK: - Text colors
+extension Color {
+    enum Text {
+        static let primary = Color(hex: "#YOUR_HEX")
+        static let secondary = Color(hex: "#YOUR_HEX")
+        static let placeholder = Color(hex: "#YOUR_HEX")
+    }
+}
+
+// MARK: - Semantic colors
+extension Color {
+    enum Semantic {
+        static let error = Color(hex: "#FF3B30")
+        static let success = Color(hex: "#34C759")
+        static let warning = Color(hex: "#FF9500")
+    }
 }
 ```
+
+**Usage in Views:**
+```swift
+.foregroundColor(.Brand.primary)
+.background(Color.Background.card)
+```
+
+### 3. Dark mode
+
+For dark mode support, use `@Environment(\.colorScheme)` in Views or define separate hex values per mode:
+
+```swift
+extension Color {
+    enum Background {
+        static let primary = Color(hex: colorScheme == .dark ? "#1C1C1E" : "#FFFFFF")
+        // Or use asset catalog Color Sets for adaptive colors
+    }
+}
+```
+
+If the project uses Asset Catalog adaptive colors, use `Color("ColorSetName")` instead of `Color(hex:)` for those tokens.
 
 ## Fonts Setup
 
 ### 1. Gather font info
 
 Ask user:
-- Font family name (e.g. "Inter", "Montserrat")
-- Weights needed (regular, medium, semibold, bold)
+- Font family name (e.g. "Outfit", "Inter", "Montserrat")
+- Weights needed (regular, medium, semibold, bold, etc.)
 - Font file format (.ttf or .otf)
 
 ### 2. Add font files to project
@@ -133,7 +149,6 @@ Ask user:
 
 ### 3. Register in Info.plist
 
-Add `UIAppFonts` array with font file names:
 ```xml
 <key>UIAppFonts</key>
 <array>
@@ -144,72 +159,107 @@ Add `UIAppFonts` array with font file names:
 </array>
 ```
 
-### 4. Generate AppFonts.swift
+### 4. Font file — three-layer pattern
+
+The font system has 3 layers: PostScript names → text styles → `.textStyle()` modifier.
 
 ```swift
+// Utilities/DesignSystem/<AppPrefix>Font.swift
 import SwiftUI
 
-enum AppFont {
-    static func regular(_ size: CGFloat) -> Font {
-        .custom("FontName-Regular", size: size)
-    }
-    static func medium(_ size: CGFloat) -> Font {
-        .custom("FontName-Medium", size: size)
-    }
-    static func semibold(_ size: CGFloat) -> Font {
-        .custom("FontName-SemiBold", size: size)
-    }
-    static func bold(_ size: CGFloat) -> Font {
-        .custom("FontName-Bold", size: size)
+// Layer 1: PostScript name enum (one case per font file)
+enum <AppPrefix>FontSystem {
+    enum <FamilyName> {
+        static let regular = "<PostScriptName>-Regular"
+        static let medium = "<PostScriptName>-Medium"
+        static let semiBold = "<PostScriptName>-SemiBold"
+        static let bold = "<PostScriptName>-Bold"
     }
 }
 
-// Semantic text styles
-extension Font {
-    static let appTitle: Font = AppFont.bold(28)
-    static let appHeadline: Font = AppFont.semibold(20)
-    static let appBody: Font = AppFont.regular(16)
-    static let appCaption: Font = AppFont.regular(12)
+// Layer 2: Text style struct (font + lineHeight)
+struct <AppPrefix>TextStyle {
+    let font: Font
+    let lineHeight: CGFloat
+}
+
+// Layer 3: Semantic token enum
+enum <AppPrefix>Font {
+    enum Display {
+        static let bold = <AppPrefix>TextStyle(
+            font: .custom(<AppPrefix>FontSystem.<FamilyName>.bold, size: 32),
+            lineHeight: 40
+        )
+    }
+    enum Heading {
+        static let semiBold = <AppPrefix>TextStyle(
+            font: .custom(<AppPrefix>FontSystem.<FamilyName>.semiBold, size: 24),
+            lineHeight: 32
+        )
+    }
+    enum Body {
+        static let regular = <AppPrefix>TextStyle(
+            font: .custom(<AppPrefix>FontSystem.<FamilyName>.regular, size: 16),
+            lineHeight: 24
+        )
+        static let semiBold = <AppPrefix>TextStyle(
+            font: .custom(<AppPrefix>FontSystem.<FamilyName>.semiBold, size: 16),
+            lineHeight: 24
+        )
+    }
+    enum Caption {
+        static let regular = <AppPrefix>TextStyle(
+            font: .custom(<AppPrefix>FontSystem.<FamilyName>.regular, size: 12),
+            lineHeight: 16
+        )
+    }
 }
 ```
 
-### 5. Verify font name
+### 5. `.textStyle()` View modifier
+
+```swift
+// Utilities/DesignSystem/<AppPrefix>Font.swift (append to same file)
+
+struct TextStyleModifier: ViewModifier {
+    let style: <AppPrefix>TextStyle
+
+    func body(content: Content) -> some View {
+        content
+            .font(style.font)
+            .lineSpacing(style.lineHeight - UIFont.systemFontSize) // adjust as needed
+    }
+}
+
+extension View {
+    func textStyle(_ style: <AppPrefix>TextStyle) -> some View {
+        modifier(TextStyleModifier(style: style))
+    }
+}
+```
+
+**Usage in Views:**
+```swift
+Text("Hello")
+    .textStyle(<AppPrefix>Font.Body.regular)
+
+Text("Title")
+    .textStyle(<AppPrefix>Font.Heading.semiBold)
+    .foregroundColor(.Brand.primary)
+```
+
+### 6. Verify font PostScript name
 
 Font PostScript name ≠ file name. Find actual name:
 
 ```swift
-// Temporary: add to AppDelegate to print registered fonts
+// Temporary: add to app entry point to print registered fonts
 UIFont.familyNames.sorted().forEach { family in
     UIFont.fontNames(forFamilyName: family).forEach { print($0) }
 }
 ```
 
 Use the printed name in `Font.custom(...)`.
-
-## Spacing Setup
-
-### Generate AppSpacing.swift
-
-```swift
-enum AppSpacing {
-    static let xxs: CGFloat = 4
-    static let xs: CGFloat = 8
-    static let sm: CGFloat = 12
-    static let md: CGFloat = 16
-    static let lg: CGFloat = 24
-    static let xl: CGFloat = 32
-    static let xxl: CGFloat = 48
-    static let xxxl: CGFloat = 64
-}
-
-enum AppRadius {
-    static let sm: CGFloat = 8
-    static let md: CGFloat = 12
-    static let lg: CGFloat = 16
-    static let xl: CGFloat = 24
-    static let full: CGFloat = 999
-}
-```
 
 ## Figma Integration
 
@@ -218,41 +268,40 @@ If user provides a Figma URL, use Figma MCP tools:
 1. `get_design_context` with fileKey from URL
 2. `get_variable_defs` to extract design tokens
 3. Map Figma variables → Swift tokens:
-   - Color variables → AppColors.swift
-   - Typography variables → AppFonts.swift
-   - Spacing/radius variables → AppSpacing.swift
+   - Color variables → nested `Color` enum groups
+   - Typography variables → `<AppPrefix>Font` enum cases with `<AppPrefix>TextStyle`
 
 Parse Figma URL: `figma.com/design/:fileKey/:name?node-id=:nodeId`
 
 ## After Setup
 
-1. Search codebase for raw color/font usage to replace:
+Search codebase for raw usage to replace:
+
 ```
-Grep pattern: "Color(\..*)" or "Color(hex:" or ".font(.system"
+Grep: ".foregroundColor(.blue)" or "Color(hex:" at call site or ".font(.system"
 ```
 
-2. Replace raw values with design tokens:
+Replace with design tokens:
 ```swift
-// ❌ Raw
+// Before
 .foregroundColor(.blue)
 .font(.system(size: 16))
-.padding(16)
 
-// ✅ Design tokens
-.foregroundColor(.brandPrimary)
-.font(.appBody)
-.padding(AppSpacing.md)
+// After
+.foregroundColor(.Brand.primary)
+.textStyle(<AppPrefix>Font.Body.regular)
 ```
 
-3. Commit:
+Commit:
 ```
 chore: setup design system tokens
 ```
 
 ## Rules
 
-- Never hardcode hex values in View files — always use AppColors tokens
-- Never use `.font(.system(...))` in Views — always use AppFont/AppFonts
-- Never use magic numbers for padding — always use AppSpacing
+- **Never use flat `Color` extensions** — always use nested enum groups (`Color.Brand`, `Color.Background`, etc.)
+- **Never use `AppFont.regular(16)` function pattern** — use `<AppPrefix>TextStyle` struct + `.textStyle()` modifier
+- **Never use `.font(.system(...))` in Views** — always use `.textStyle()`
+- **No `AppSpacing` enum** — spacing values are project-specific; use explicit values or add spacing tokens only if the project already has them
 - Font PostScript name must match exactly — verify before using
-- Dark mode: always provide both light and dark variants for semantic colors
+- Dark mode: provide adaptive colors where needed (hex per mode or Asset Catalog Color Sets)

@@ -7,7 +7,7 @@ description: Plan and implement a complete iOS feature end-to-end following Clea
 
 Full-cycle feature implementation: plan → implement → review. Follows Clean Architecture strictly.
 
-**Scope:** New features in SwiftUI + Clean Architecture projects using this kit's template.
+**Scope:** New features in SwiftUI + Clean Architecture projects using the Factory DI + Coordinator navigation pattern.
 **Does NOT handle:** Bug fixes (use `/ios-debug`), project bootstrap (use `/bootstrap-ios`), build issues (use `/ios-build`).
 
 ## Arguments
@@ -25,26 +25,20 @@ Examples:
 
 ### 0.1 Ask clarifying questions (one at a time if unclear)
 
-- What data needs to persist? → SwiftData entities needed
+- What data needs to persist? → SwiftData `@Model` entities needed
 - Does it call a remote API? → Remote data source needed
 - What screens/navigation flows are needed?
 - Any real-time updates? → AsyncStream needed
-- Dependencies on other features?
+- Which coordinator owns this feature? (Main, Onboarding, etc.)
 
 ### 0.2 Research existing codebase
 
-```bash
-# Understand existing patterns
-ls <AppName>/Domain/
-ls <AppName>/Data/
-ls <AppName>/Presentation/
-```
-
 Read:
-- `SchemaExtension.swift` — existing SwiftData models
-- `AppRoute.swift` — existing navigation routes
+- `AppSchema.swift` — existing SwiftData models (under `DBModel` namespace)
+- `MainRoute.swift` (or relevant Route enum) — existing navigation routes
 - `Container+Interactors.swift` — DI registration pattern
 - One existing Interactor + RepositoryImpl as reference
+- The relevant Coordinator (e.g. `MainCoordinator.swift`) for navigation wiring
 
 ### 0.3 Create plan
 
@@ -103,37 +97,83 @@ final class RealFeatureInteractor: FeatureInteractor {
 
 ```
 <AppName>/Data/
-├── DataSource/Local/Entity/<Feature>Entity.swift   ← @Model
-├── DataSource/Local/<Feature>LocalDataSource.swift ← protocol + MainDBRepository extension
-├── Mappers/<Feature>Mapper.swift                   ← Entity ↔ Domain extensions
-└── Repository/<Feature>RepositoryImpl.swift        ← coordinates local + remote
+├── DataSource/Local/Entity/<Feature>Entity.swift      ← @Model inside DBModel namespace
+├── DataSource/Local/<Feature>LocalDataSource.swift    ← protocol + MainDBRepository extension
+├── Mappers/<Feature>Mapper.swift                      ← Entity ↔ Domain extensions
+└── Repository/<Feature>RepositoryImpl.swift           ← coordinates local + remote
 ```
 
 **Files to modify:**
-- `SchemaExtension.swift` — add entity to schema array
+- `AppSchema.swift` — add `DBModel.<Feature>.self` to `Schema.appSchema` array + bump version
+- `Container+Infrastructure.swift` — update ModelContainer schema if needed
 - `Container+DataSources.swift` — register data source
 - `Container+Repositories.swift` — register repository
 - `Container+Interactors.swift` — register interactor
+- `Container+Services.swift` — register service if applicable
 
 ```swift
 // Data/DataSource/Local/Entity/FeatureEntity.swift
-@Model
-final class FeatureEntity {
-    @Attribute(.unique) var id: UUID
-    // stored properties
-    init(id: UUID = .init()) { self.id = id }
+// Wrap @Model inside DBModel namespace
+extension DBModel {
+    @Model
+    final class Feature {
+        @Attribute(.unique) var id: UUID
+        // stored properties
+        init(id: UUID = .init()) { self.id = id }
+    }
 }
 
 // Data/Mappers/FeatureMapper.swift
-extension FeatureEntity {
+extension DBModel.Feature {
     func toDomain() -> Feature { Feature(id: id) }
 }
 extension Feature {
-    func toEntity() -> FeatureEntity { FeatureEntity(id: id) }
+    func toEntity() -> DBModel.Feature { DBModel.Feature(id: id) }
+}
+
+// AppSchema.swift — add to schema array
+extension Schema {
+    static var appSchema: Schema {
+        Schema(
+            [
+                // existing models...
+                DBModel.Feature.self
+            ],
+            version: Schema.Version(1, 2, 0) // bump version
+        )
+    }
 }
 ```
 
-**After modifying SchemaExtension.swift:** Increment schema version if adding new `@Model`.
+**Container registration pattern (Factory):**
+
+```swift
+// Container+DataSources.swift
+extension Container {
+    var featureLocalDataSource: Factory<FeatureLocalDataSource> {
+        self { MainDBRepository.shared }
+            .singleton
+    }
+}
+
+// Container+Repositories.swift
+extension Container {
+    var featureRepository: Factory<FeatureRepository> {
+        self { FeatureRepositoryImpl(localDataSource: self.featureLocalDataSource()) }
+            .singleton
+    }
+}
+
+// Container+Interactors.swift
+extension Container {
+    var featureInteractor: Factory<FeatureInteractor> {
+        self { RealFeatureInteractor(repository: self.featureRepository()) }
+            .shared
+    }
+}
+```
+
+**After modifying AppSchema.swift:** Always bump the schema version to avoid migration crashes.
 
 ## Phase 3 — Presentation Layer
 
@@ -141,25 +181,34 @@ extension Feature {
 
 ```
 <AppName>/Presentation/<Feature>/
-├── <Feature>ViewModel.swift   ← @MainActor, @Observable, @Injected
-└── <Feature>View.swift        ← callbacks only, no direct navigation
+├── <Feature>ViewModel.swift   ← ObservableObject, @Injected, NavigationEvent
+└── <Feature>View.swift        ← @StateObject, observes navigationEvent via .onChange
 ```
 
 **Files to modify:**
-- `AppRoute.swift` — add route case
-- `RootView.swift` — wire callback + navigationDestination
+- `MainRoute.swift` (or relevant Route enum) — add route case
+- `MainCoordinator.swift` (or relevant Coordinator) — add `navigationDestination` case
+- `MainRootView.swift` — wire `.navigationDestination` if not in coordinator
+
+**ViewModel pattern — `ObservableObject` + `@Published` + Factory `@Injected`:**
 
 ```swift
 // Presentation/Feature/FeatureViewModel.swift
 @MainActor
-@Observable
-final class FeatureViewModel {
-    @Injected private var interactor: FeatureInteractor
+final class FeatureViewModel: ObservableObject {
+    @Injected(\.featureInteractor) private var interactor
 
-    var items: [Feature] = []
-    var isLoading = false
-    var error: Error?
+    @Published var items: [Feature] = []
+    @Published var isLoading = false
+    @Published var error: Error?
+    @Published var navigationEvent: NavigationEvent?
 
+    enum NavigationEvent {
+        case detail(Feature)
+        case dismiss
+    }
+
+    private var cancellables = Set<AnyCancellable>()
     private var tasks: [Task<Void, Never>] = []
     deinit { tasks.forEach { $0.cancel() } }
 
@@ -175,17 +224,57 @@ final class FeatureViewModel {
         }
         tasks.append(task)
     }
-}
 
+    func selectItem(_ item: Feature) {
+        navigationEvent = .detail(item)
+    }
+}
+```
+
+**View pattern — `@StateObject` + `.onChange` for navigation:**
+
+```swift
 // Presentation/Feature/FeatureView.swift
 struct FeatureView: View {
-    @State private var viewModel = FeatureViewModel()
-    var onDismiss: () -> Void  // callback, no coordinator reference
+    @StateObject private var viewModel = FeatureViewModel()
+
+    // Coordinator callback — receive navigate action, not a coordinator reference
+    var onNavigate: ((FeatureViewModel.NavigationEvent) -> Void)?
 
     var body: some View {
         // UI here
+        .onAppear { viewModel.load() }
+        .onChange(of: viewModel.navigationEvent) { _, event in
+            guard let event else { return }
+            onNavigate?(event)
+            viewModel.navigationEvent = nil
+        }
     }
-    .onAppear { viewModel.load() }
+}
+```
+
+**Coordinator wiring:**
+
+```swift
+// Add to MainRoute.swift
+enum MainRoute: Hashable {
+    // existing cases...
+    case featureDetail(Feature)
+}
+
+// Add to MainCoordinator.swift navigationDestination
+switch route {
+case .featureDetail(let item):
+    FeatureDetailView(item: item)
+// ...
+}
+
+// In parent view/coordinator — wire callback
+FeatureView { event in
+    switch event {
+    case .detail(let item): coordinator.navigate(to: .featureDetail(item))
+    case .dismiss: coordinator.pop()
+    }
 }
 ```
 
@@ -193,15 +282,18 @@ struct FeatureView: View {
 
 After implementation, automatically trigger review:
 
-Check for:
 - [ ] Domain layer has no SwiftData/UIKit/SwiftUI imports
+- [ ] ViewModel is `ObservableObject` with `@Published` (NOT `@Observable`)
 - [ ] ViewModel is `@MainActor`
+- [ ] `@Injected(\.xxx)` used for DI (NOT `@Environment` or manual init injection)
 - [ ] Tasks cancelled in `deinit`
-- [ ] `#Predicate` uses extracted variables
+- [ ] `#Predicate` uses extracted variables (not inline property access)
 - [ ] Repository protocol used (not concrete type) in Interactor
-- [ ] New `@Model` added to `SchemaExtension.swift`
-- [ ] DI container updated for all new types
-- [ ] AppRoute + RootView wired for new screen
+- [ ] New `@Model` wrapped in `DBModel` namespace extension
+- [ ] New entity added to `AppSchema.swift` schema array + version bumped
+- [ ] All Container files updated (DataSources, Repositories, Interactors)
+- [ ] Route enum + Coordinator `navigationDestination` wired for new screen
+- [ ] NavigationEvent enum defined in ViewModel, consumed via `.onChange` in View
 
 Fix any Critical issues before reporting complete.
 
@@ -215,7 +307,10 @@ Mark completed phases in `plans/<slug>/plan.md`:
 
 - **Never start implementation without plan approval**
 - **Always follow Domain → Data → Presentation order**
-- If feature touches existing entities: check for SchemaExtension migration needs
+- **Never use `@Observable` macro** — use `ObservableObject + @Published`
+- **Never inject via `@State private var viewModel = FeatureViewModel()`** — use `@StateObject`
+- **Never navigate from View directly** — use NavigationEvent enum + coordinator callback
+- If feature touches existing entities: check AppSchema.swift migration needs
 - If feature is tiny (<3 files): skip plan files, inline in chat
 - Commit each phase separately: `feat(<feature>): add domain layer`
 
