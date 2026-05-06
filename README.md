@@ -8,8 +8,12 @@ Claude Code toolkit for iOS development with SwiftUI + Clean Architecture.
 | Component | Trigger | Description |
 |-----------|---------|-------------|
 | `skills/bootstrap-ios` | `/bootstrap-ios` | Bootstrap a new iOS project from template |
+| `skills/ios-setup` | `/ios-setup [firebase\|signing\|api]` | Post-bootstrap setup — Firebase, signing, API config |
+| `skills/ios-feature` | `/ios-feature <feature>` | Plan + implement a full feature end-to-end |
 | `skills/ios-build` | `/ios-build` | Typecheck, build, run tests via xcodebuild |
+| `skills/ios-debug` | `/ios-debug [build\|crash\|swiftdata\|pods\|memory\|layout]` | Debug build errors, crashes, and runtime issues |
 | `skills/ios-plan` | `/ios-plan <feature>` | Plan a feature before implementing |
+| `skills/ios-design-system` | `/ios-design-system [colors\|fonts\|spacing\|figma]` | Setup brand colors, fonts, and spacing tokens |
 | `skills/ios-skill-creator` | `/ios-skill-creator` | Create a new skill for this kit |
 
 ### Agents
